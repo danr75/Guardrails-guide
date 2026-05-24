@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    font-feature-settings: 'cv11', 'ss01';
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-xl border border-ink-300/70 shadow-sm;
+  }
+  .card-pad {
+    @apply p-5;
+  }
+  .label {
+    @apply text-xs font-medium uppercase tracking-wide text-ink-500;
+  }
+  .btn {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-ink-100 transition;
+  }
+  .btn-primary {
+    @apply bg-ink-900 text-white border-ink-900 hover:bg-ink-700;
+  }
+  .input {
+    @apply w-full rounded-md border border-ink-300 bg-white px-2 py-1 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-ink-900/10;
+  }
+}
+
+input[type='range'] {
+  @apply w-full accent-ink-900;
+}
