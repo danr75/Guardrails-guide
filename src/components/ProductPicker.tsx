@@ -87,6 +87,8 @@ export function ProductPicker({
 
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
+          id="product-query"
+          name="product-query"
           className="input flex-1"
           placeholder="e.g. Microsoft Copilot, Glean, in-house RAG chatbot"
           value={query}
