@@ -1,186 +1,181 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
+import type { PreflightProductCandidate } from '../lib/api';
 import {
-  ApiError,
-  classifyProduct,
-  suggestProducts,
-  type ProductSuggestion,
-} from '../lib/api';
-import { PATTERNS } from '../data/guardrailsGuide';
+  AI_SHAPE_LABELS,
+  DEPLOYMENT_LABELS,
+  type AiShape,
+  type Deployment,
+} from '../schemas/guardrails';
 
 interface Props {
-  onClassified: (args: { productLabel: string; patternId: string; rationale: string }) => void;
-  /** Currently active product label, if any. Drives the banner. */
-  productLabel: string | null;
-  /** Rationale returned by classify, shown in the banner. */
-  rationale: string | null;
-  /** Active patternId (from App). Used to show the pattern name in the banner. */
-  patternId: string;
-  /** Reset back to "no product picked". */
-  onReset: () => void;
+  candidates: PreflightProductCandidate[];
+  onSelect: (
+    candidate: PreflightProductCandidate,
+    deployment: Deployment,
+    aiShape: AiShape,
+  ) => void;
+  onCancel: () => void;
 }
 
-export function ProductPicker({
-  onClassified,
-  productLabel,
-  rationale,
-  patternId,
-  onReset,
-}: Props) {
-  const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<ProductSuggestion[] | null>(null);
-  const [stage, setStage] = useState<'idle' | 'suggesting' | 'classifying'>('idle');
-  const [error, setError] = useState<string | null>(null);
+export function ProductPicker({ candidates, onSelect, onCancel }: Props) {
+  const [activeKey, setActiveKey] = useState<string>(keyFor(candidates[0]));
+  const active = candidates.find((c) => keyFor(c) === activeKey) ?? candidates[0];
 
-  const patternName =
-    PATTERNS.find((p) => p.id === patternId)?.name ?? patternId;
+  const [deployment, setDeployment] = useState<Deployment | undefined>(
+    active.deploymentOptions.length === 1 ? active.deploymentOptions[0] : undefined,
+  );
+  const [aiShape, setAiShape] = useState<AiShape | undefined>(
+    active.aiShapeOptions.length === 1 ? active.aiShapeOptions[0] : undefined,
+  );
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    const q = query.trim();
-    if (!q || stage !== 'idle') return;
-    setError(null);
-    setSuggestions(null);
-    setStage('suggesting');
-    try {
-      const res = await suggestProducts(q);
-      setSuggestions(res.suggestions ?? []);
-    } catch (err) {
-      setError(messageFor(err));
-    } finally {
-      setStage('idle');
-    }
+  function switchCandidate(c: PreflightProductCandidate) {
+    setActiveKey(keyFor(c));
+    setDeployment(c.deploymentOptions.length === 1 ? c.deploymentOptions[0] : undefined);
+    setAiShape(c.aiShapeOptions.length === 1 ? c.aiShapeOptions[0] : undefined);
   }
 
-  async function pickProduct(label: string) {
-    if (stage !== 'idle') return;
-    setError(null);
-    setStage('classifying');
-    try {
-      const res = await classifyProduct(label);
-      onClassified({
-        productLabel: label,
-        patternId: res.patternId,
-        rationale: res.rationale,
-      });
-      setSuggestions(null);
-      setQuery('');
-    } catch (err) {
-      setError(messageFor(err));
-    } finally {
-      setStage('idle');
-    }
+  function confirm() {
+    if (!deployment || !aiShape) return;
+    onSelect(active, deployment, aiShape);
   }
 
-  const busy = stage !== 'idle';
+  const canConfirm = !!deployment && !!aiShape;
 
   return (
     <section className="card card-pad space-y-3">
-      <header>
-        <h2 className="text-base font-semibold text-ink-900">
-          What guardrails do we need for…
-        </h2>
-        <p className="text-xs text-ink-500 mt-0.5">
-          Type a product, platform, or system. An LLM will find matches and pick
-          the closest architecture pattern. You can override the pattern below.
-        </p>
+      <header className="flex items-baseline justify-between gap-4">
+        <div>
+          <h3 className="text-base font-semibold text-ink-900">Which one did you mean?</h3>
+          <p className="text-xs text-ink-500 mt-0.5">
+            Pick the candidate and tell us how it's deployed in your environment. Both
+            choices change which guardrails are built in.
+          </p>
+        </div>
+        <button onClick={onCancel} className="text-xs text-ink-700 underline">
+          Cancel
+        </button>
       </header>
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          id="product-query"
-          name="product-query"
-          className="input flex-1"
-          placeholder="e.g. Microsoft Copilot, Glean, in-house RAG chatbot"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          disabled={busy}
-          aria-label="Product or platform name"
-        />
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={busy || !query.trim()}
-        >
-          {stage === 'suggesting' ? 'Searching…' : 'Find matches'}
-        </button>
-      </form>
-
-      {error && (
-        <div className="rounded-md border border-rose-300 bg-rose-50 text-rose-800 text-xs px-3 py-2">
-          {error}
-        </div>
-      )}
-
-      {suggestions && (
-        <div className="space-y-2">
-          {suggestions.length === 0 ? (
-            <p className="text-xs text-ink-500 italic">
-              No matches. Try a different term, or pick "use my exact text" below.
-            </p>
-          ) : (
-            <>
-              <div className="text-[11px] uppercase tracking-wider text-ink-500 font-semibold">
-                Suggestions
-              </div>
-              <ul className="flex flex-wrap gap-2">
-                {suggestions.map((s) => (
-                  <li key={`${s.vendor}-${s.name}`}>
-                    <button
-                      onClick={() => pickProduct(`${s.name} (${s.vendor})`)}
-                      disabled={busy}
-                      className="rounded-md border border-ink-300 bg-white hover:bg-ink-100 px-3 py-1.5 text-left text-xs disabled:opacity-50"
-                      title={s.oneLiner}
+      <ul className="space-y-2">
+        {candidates.map((c) => {
+          const isActive = keyFor(c) === activeKey;
+          return (
+            <li
+              key={keyFor(c)}
+              className={
+                'rounded-lg border transition ' +
+                (isActive ? 'border-ink-900 bg-white' : 'border-ink-300 bg-white hover:bg-ink-100')
+              }
+            >
+              <button
+                onClick={() => switchCandidate(c)}
+                className="w-full text-left px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-ink-900">{c.name}</div>
+                    <div className="text-[11px] text-ink-500">
+                      {c.vendor} · {c.category}
+                    </div>
+                  </div>
+                  {c.url && (
+                    <a
+                      href={c.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[11px] text-ink-700 underline shrink-0"
                     >
-                      <div className="text-sm font-medium text-ink-900">
-                        {s.name}
-                      </div>
-                      <div className="text-[11px] text-ink-500">
-                        {s.vendor} — {s.oneLiner}
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          <button
-            onClick={() => pickProduct(query.trim())}
-            disabled={busy || !query.trim()}
-            className="text-xs text-ink-700 underline underline-offset-2 hover:text-ink-900 disabled:opacity-50"
-          >
-            None of these — use my exact text ("{query.trim()}")
-          </button>
-        </div>
-      )}
+                      vendor site
+                    </a>
+                  )}
+                </div>
+                {c.description && (
+                  <p className="text-xs text-ink-600 mt-1">{c.description}</p>
+                )}
+              </button>
 
-      {stage === 'classifying' && (
-        <p className="text-xs text-ink-500 italic">Classifying…</p>
-      )}
+              {isActive && (
+                <div className="px-3 pb-3 space-y-2 border-t border-ink-300/60 mt-1 pt-2">
+                  <ChipRow
+                    label="Deployment"
+                    options={c.deploymentOptions}
+                    labels={DEPLOYMENT_LABELS}
+                    value={deployment}
+                    onChange={(v) => setDeployment(v as Deployment)}
+                  />
+                  <ChipRow
+                    label="AI shape"
+                    options={c.aiShapeOptions}
+                    labels={AI_SHAPE_LABELS}
+                    value={aiShape}
+                    onChange={(v) => setAiShape(v as AiShape)}
+                  />
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
-      {productLabel && (
-        <div className="rounded-md border border-ink-300 bg-ink-100/60 px-3 py-2 text-xs text-ink-800 flex items-start gap-2 flex-wrap">
-          <span>
-            Treating <strong>{productLabel}</strong> as{' '}
-            <strong>{patternName}</strong>
-            {rationale ? ` — ${rationale}` : ''}
-          </span>
-          <button
-            onClick={onReset}
-            className="ml-auto text-ink-700 underline underline-offset-2 hover:text-ink-900"
-          >
-            Change
-          </button>
-        </div>
-      )}
+      <div className="flex items-center justify-end gap-2">
+        <button onClick={onCancel} className="btn">
+          Cancel
+        </button>
+        <button
+          onClick={confirm}
+          disabled={!canConfirm}
+          className="btn btn-primary disabled:opacity-50"
+        >
+          Assess this
+        </button>
+      </div>
     </section>
   );
 }
 
-function messageFor(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.status === 503) return 'LLM not configured. Pattern buttons still work.';
-    return err.message;
-  }
-  if (err instanceof Error) return err.message;
-  return 'Unknown error';
+function ChipRow<T extends string>({
+  label,
+  options,
+  labels,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: T[];
+  labels: Record<T, string>;
+  value: T | undefined;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-ink-500 font-semibold mb-1">
+        {label}
+      </div>
+      <ul className="flex flex-wrap gap-1.5">
+        {options.map((opt) => {
+          const active = opt === value;
+          return (
+            <li key={opt}>
+              <button
+                onClick={() => onChange(opt)}
+                className={
+                  'rounded-md border px-2 py-1 text-xs transition ' +
+                  (active
+                    ? 'bg-ink-900 text-white border-ink-900'
+                    : 'bg-white text-ink-700 border-ink-300 hover:bg-ink-100')
+                }
+              >
+                {labels[opt]}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function keyFor(c: PreflightProductCandidate): string {
+  return `${c.vendor}::${c.name}`;
 }

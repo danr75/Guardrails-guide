@@ -12,5 +12,10 @@
     "resolveJsonModule": true,
     "esModuleInterop": true
   },
-  "include": ["worker/**/*.ts", "src/data/patternSummary.ts"]
+  "include": [
+    "worker/**/*.ts",
+    "src/schemas/**/*.ts",
+    "src/rules/**/*.ts",
+    "src/evidence/**/*.ts"
+  ]
 }

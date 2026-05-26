@@ -10,9 +10,14 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 
 [vars]
-# Override per environment. The default is a sensible recent model.
-OPENROUTER_MODEL = "anthropic/claude-sonnet-4.6"
+# Override per environment. Defaults are sensible recent models.
+OPENROUTER_MODEL_PREFLIGHT = "anthropic/claude-haiku-4.5"
+OPENROUTER_MODEL_EXTRACT = "anthropic/claude-haiku-4.5"
+OPENROUTER_MODEL_ESCALATE = "anthropic/claude-sonnet-4.6"
 ALLOWED_ORIGIN = "*"
 
 # Secrets — set via `wrangler secret put OPENROUTER_API_KEY`
 # OPENROUTER_API_KEY (do not commit)
+#
+# NOTE: Workers Paid plan is recommended. A 4-roundtrip web_search extract
+# can run 60–180s and exceed free-tier wall-clock limits.
