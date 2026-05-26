@@ -144,13 +144,17 @@ function normalizeGuardrailItem(
   if (!isOneOf<Presence>(raw.presence, PRESENCE_VALUES)) return null;
   if (!isOneOf<ControlSurface>(raw.appliedAt, CONTROL_SURFACES)) return null;
 
-  // (key, surface) validity check — downgrade out-of-allowlist combos.
+  // (key, surface) validity check — drop out-of-allowlist combos rather than
+  // silently rewriting presence to 'unknown'. Rewriting corrupts the LLM's
+  // correct presence verdict (it may have been right about the guardrail being
+  // built in, just wrong about the surface) and produces false "missing"
+  // results. Returning null bumps the `dropped.guardrails` counter so the
+  // diagnostic stays honest.
+  if (!ALLOWED_SURFACES[raw.key].includes(raw.appliedAt)) {
+    return null;
+  }
   let appliedAt = raw.appliedAt;
   let presence = raw.presence;
-  if (!ALLOWED_SURFACES[raw.key].includes(appliedAt)) {
-    presence = 'unknown';
-    appliedAt = ALLOWED_SURFACES[raw.key][0] ?? 'vendor_runtime';
-  }
 
   // "built_in" at customer_config is invalid — force to configurable.
   if (presence === 'built_in' && appliedAt === 'customer_config') {

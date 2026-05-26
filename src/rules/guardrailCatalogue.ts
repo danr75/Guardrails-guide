@@ -42,6 +42,18 @@ export const GUARDRAIL_CATALOGUE: ReadonlyArray<GuardrailRequirementDef> = [
     ],
   },
   {
+    key: 'content_policy_input',
+    label: 'Input content policy',
+    description: 'Reject or sanitise user input that violates acceptable-use policy before it reaches the model.',
+    threat: 'Policy-violating prompts (illegal content, targeted harassment, regulated-topic queries) bypassing review.',
+    defaultRequired: true,
+    standards: ['NIST AI RMF MS-2.6', 'ISO/IEC 42001 §8.2'],
+    externalCompensations: [
+      { surface: 'network_edge_proxy', control: 'AI gateway with input classifier enforcing acceptable-use rules.' },
+      { surface: 'data_loss_prevention', control: 'DLP rule on outbound prompts blocks regulated content classes.' },
+    ],
+  },
+  {
     key: 'output_filter',
     label: 'Output filter',
     description: 'Scan model output for policy-violating, harmful, or unsafe content before it reaches the user.',
@@ -99,6 +111,18 @@ export const GUARDRAIL_CATALOGUE: ReadonlyArray<GuardrailRequirementDef> = [
     ],
   },
   {
+    key: 'freshness_check',
+    label: 'Retrieval freshness',
+    description: 'Reject or flag retrieved chunks past a recency threshold; surface staleness to the user.',
+    threat: 'Stale answers given as authoritative — outdated policy / pricing / specs reaching users.',
+    defaultRequired: false,
+    standards: ['NIST AI RMF MS-2.5'],
+    externalCompensations: [
+      { surface: 'customer_config', control: 'Schedule a re-index window and configure max-age on retrieval connectors.' },
+      { surface: 'governance_policy', control: 'Editorial policy requires a "data as of" disclosure in AI-authored documents.' },
+    ],
+  },
+  {
     key: 'source_allowlist',
     label: 'Source allowlist',
     description: 'Only retrieve from approved corpora; never the open web by default.',
@@ -107,6 +131,30 @@ export const GUARDRAIL_CATALOGUE: ReadonlyArray<GuardrailRequirementDef> = [
     standards: ['ISO/IEC 42001 §8.3'],
     externalCompensations: [
       { surface: 'network_edge_proxy', control: 'Egress allowlist restricting which retrieval URLs the system can reach.' },
+    ],
+  },
+  {
+    key: 'doc_acl',
+    label: 'Per-user document ACL',
+    description: 'Enforce the caller\'s document-level permissions when retrieving chunks for grounding (RAG).',
+    threat: 'Cross-user leakage within a single tenant — user A receives an answer drawn from documents only user B may read.',
+    defaultRequired: true,
+    standards: ['ISO/IEC 27001 A.9 (access control)', 'NIST AI RMF MS-2.10'],
+    externalCompensations: [
+      { surface: 'identity_provider', control: 'IdP groups passed to the retrieval layer as a hard filter (pre-retrieval, not post-rerank).' },
+      { surface: 'governance_policy', control: 'Restrict the corpus to documents whose ACL is enforced upstream of indexing.' },
+    ],
+  },
+  {
+    key: 'schema_validation',
+    label: 'Output schema validation',
+    description: 'Validate structured model output against a typed schema before downstream code consumes it.',
+    threat: 'Malformed or fabricated structured fields breaking downstream systems or being acted on as facts.',
+    defaultRequired: false,
+    standards: ['NIST AI RMF MS-2.5', 'ISO/IEC 42001 §8.2'],
+    externalCompensations: [
+      { surface: 'client_application', control: 'Strict JSON-schema / Pydantic / Zod validation at the API boundary; reject on parse failure.' },
+      { surface: 'api_gateway', control: 'Gateway response-schema enforcement with reject-on-fail policy.' },
     ],
   },
   {
@@ -121,6 +169,18 @@ export const GUARDRAIL_CATALOGUE: ReadonlyArray<GuardrailRequirementDef> = [
     ],
   },
   {
+    key: 'scoped_credentials',
+    label: 'Scoped tool credentials',
+    description: 'Tools the agent invokes use least-privilege credentials scoped to the calling user / tenant — not a shared service principal.',
+    threat: 'OWASP LLM08 — excessive agency. A compromised or coerced agent acts with broader privilege than the human ever held.',
+    defaultRequired: true,
+    standards: ['OWASP LLM Top 10: LLM08', 'NIST AI RMF MG-3.1'],
+    externalCompensations: [
+      { surface: 'identity_provider', control: 'Per-user OAuth token exchange / on-behalf-of flow before any tool call.' },
+      { surface: 'governance_policy', control: 'Documented credential-scope policy reviewed before any new tool is enabled.' },
+    ],
+  },
+  {
     key: 'human_in_the_loop',
     label: 'Human-in-the-loop approval',
     description: 'Block high-impact actions until a human approves.',
@@ -129,6 +189,18 @@ export const GUARDRAIL_CATALOGUE: ReadonlyArray<GuardrailRequirementDef> = [
     standards: ['NIST AI RMF MG-3.1', 'EU AI Act Art. 14'],
     externalCompensations: [
       { surface: 'governance_policy', control: 'Business-process approval workflow before AI output is acted on.' },
+    ],
+  },
+  {
+    key: 'kill_switch',
+    label: 'Kill switch',
+    description: 'A single control that instantly disables the AI feature, agent, or tool for one tenant / user / globally.',
+    threat: 'A misbehaving model or compromised agent continues acting while admins scramble to revoke credentials piecemeal.',
+    defaultRequired: true,
+    standards: ['NIST AI RMF MG-2.4', 'EU AI Act Art. 14'],
+    externalCompensations: [
+      { surface: 'api_gateway', control: 'Feature-flag / circuit-breaker on the AI route that returns 503 when tripped.' },
+      { surface: 'governance_policy', control: 'Documented incident-response runbook with explicit disable steps and owners.' },
     ],
   },
   {
@@ -310,6 +382,17 @@ export const GUARDRAIL_CATALOGUE: ReadonlyArray<GuardrailRequirementDef> = [
     standards: ['NIST AI RMF MS-1.1, MG-2.1'],
     externalCompensations: [
       { surface: 'governance_policy', control: 'Internal AI red-team programme, separate from vendor testing.' },
+    ],
+  },
+  {
+    key: 'bias_eval',
+    label: 'Bias & fairness evaluation',
+    description: 'Test the model\'s outputs across protected-attribute groups; surface disparate-impact deltas.',
+    threat: 'Disparate-impact harm to protected groups; regulatory exposure under anti-discrimination law.',
+    defaultRequired: false,
+    standards: ['NIST AI RMF MS-2.11', 'EU AI Act Art. 10(2)(f)', 'ISO/IEC 42001 §6.1.4'],
+    externalCompensations: [
+      { surface: 'governance_policy', control: 'Internal fairness eval suite run before each significant model change, with documented sign-off.' },
     ],
   },
   {

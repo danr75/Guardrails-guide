@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import {
   ApiError,
   extractPackage,
@@ -27,11 +27,17 @@ type Status =
 export function App() {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  // Tracks the currently-active extract so a second submission (or a reset)
+  // aborts the prior stream and prevents its stale handlers from overwriting
+  // newer UI state.
+  const abortRef = useRef<AbortController | null>(null);
 
   async function handleQuerySubmit(e: FormEvent) {
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
+    abortRef.current?.abort();
+    abortRef.current = null;
     setStatus({ kind: 'preflighting' });
     try {
       const res = await preflightQuery(q);
@@ -59,6 +65,9 @@ export function App() {
     deployment: Deployment,
     aiShape: AiShape,
   ) {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     const startedAt = Date.now();
     const events: ExtractProgressEvent[] = [];
     setStatus({ kind: 'extracting', progress: events, startedAt });
@@ -72,22 +81,27 @@ export function App() {
           aiShape,
         },
         {
+          signal: controller.signal,
           onProgress: (e) => {
+            if (controller.signal.aborted) return;
             events.push(e);
-            // New array to trigger re-render.
             setStatus({ kind: 'extracting', progress: [...events], startedAt });
           },
         },
       );
+      if (controller.signal.aborted) return;
       const gaps = evaluateGuardrails(pkgWithoutGaps.observed);
       const pkg: AssessmentPackage = { ...pkgWithoutGaps, gaps };
       setStatus({ kind: 'done', pkg });
     } catch (err) {
+      if (controller.signal.aborted) return;
       setStatus({ kind: 'error', message: messageFor(err) });
     }
   }
 
   function reset() {
+    abortRef.current?.abort();
+    abortRef.current = null;
     setStatus({ kind: 'idle' });
   }
 

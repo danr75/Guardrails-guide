@@ -100,14 +100,20 @@ export function normalizeCandidates(
     if (!name || !vendor) continue;
     const deploymentOptions = filterEnum<Deployment>(item.deploymentOptions, DEPLOYMENTS);
     const aiShapeOptions = filterEnum<AiShape>(item.aiShapeOptions, AI_SHAPES);
-    if (deploymentOptions.length === 0 || aiShapeOptions.length === 0) continue;
+    // If the LLM mis-spelled or invented an enum value, fall back to the full
+    // closed set so the user can disambiguate via the picker — better than
+    // silently dropping an otherwise-valid candidate (name+vendor were good).
+    const finalDeploymentOptions =
+      deploymentOptions.length > 0 ? deploymentOptions : [...DEPLOYMENTS];
+    const finalAiShapeOptions =
+      aiShapeOptions.length > 0 ? aiShapeOptions : [...AI_SHAPES];
     out.push({
       name,
       vendor,
       category: str(item.category) ?? 'AI product',
       description: str(item.description) ?? '',
-      deploymentOptions,
-      aiShapeOptions,
+      deploymentOptions: finalDeploymentOptions,
+      aiShapeOptions: finalAiShapeOptions,
       url: str(item.url),
     });
     if (out.length >= 4) break;

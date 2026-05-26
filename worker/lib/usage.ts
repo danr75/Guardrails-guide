@@ -45,6 +45,34 @@ export class UsageTracker {
     this.byPhase.set(this.phase, phaseCur);
   }
 
+  /**
+   * Fold another tracker's totals into this one. Used by the escalation flow
+   * so escalation tokens are only attributed when escalation actually succeeds
+   * (a failed escalation discards the side tracker entirely and the byPhase
+   * breakdown stays consistent with `escalated: false`).
+   */
+  merge(other: UsageTracker): void {
+    this.calls += other.calls;
+    for (const [model, b] of other.byModel) {
+      const cur = this.byModel.get(model) ?? emptyBreakdown();
+      cur.inputTokens += b.inputTokens;
+      cur.outputTokens += b.outputTokens;
+      cur.cachedInputTokens += b.cachedInputTokens;
+      cur.cacheCreationInputTokens += b.cacheCreationInputTokens;
+      cur.callCount += b.callCount;
+      this.byModel.set(model, cur);
+    }
+    for (const [phase, p] of other.byPhase) {
+      const cur = this.byPhase.get(phase) ?? emptyPhaseUsage();
+      cur.inputTokens += p.inputTokens;
+      cur.outputTokens += p.outputTokens;
+      cur.cachedInputTokens += p.cachedInputTokens;
+      cur.cacheCreationInputTokens += p.cacheCreationInputTokens;
+      cur.callCount += p.callCount;
+      this.byPhase.set(phase, cur);
+    }
+  }
+
   snapshot(opts: { escalated: boolean; estimatedUsd?: number }): AssessmentMetrics {
     const byModel: Record<string, ModelUsageBreakdown> = {};
     let inputTokens = 0;

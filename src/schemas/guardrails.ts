@@ -52,14 +52,20 @@ export const AI_SHAPE_LABELS: Record<AiShape, string> = {
 
 export const GUARDRAIL_KEYS = [
   'prompt_injection_filter',
+  'content_policy_input',
   'output_filter',
   'pii_redaction',
   'toxicity_filter',
   'grounding_required',
   'citations_required',
+  'freshness_check',
   'source_allowlist',
+  'doc_acl',
+  'schema_validation',
   'tool_use_allowlist',
+  'scoped_credentials',
   'human_in_the_loop',
+  'kill_switch',
   'rate_limit_per_user',
   'rate_limit_per_tenant',
   'egress_url_filter',
@@ -77,6 +83,7 @@ export const GUARDRAIL_KEYS = [
   'export_redaction',
   'model_version_pinning',
   'red_team_program',
+  'bias_eval',
   'abuse_reporting_channel',
 ] as const;
 export type GuardrailKey = (typeof GUARDRAIL_KEYS)[number];
@@ -229,14 +236,20 @@ const ALL_IN_PRODUCT: ReadonlyArray<ControlSurface> = [
 
 export const ALLOWED_SURFACES: SurfaceAllow = {
   prompt_injection_filter: ['vendor_runtime', 'network_edge_proxy', 'api_gateway'],
+  content_policy_input: ['vendor_runtime', 'network_edge_proxy', 'data_loss_prevention', 'api_gateway'],
   output_filter: ['vendor_runtime', 'network_edge_proxy', 'data_loss_prevention'],
   pii_redaction: ['vendor_runtime', 'customer_config', 'data_loss_prevention', 'network_edge_proxy'],
   toxicity_filter: ['vendor_runtime', 'network_edge_proxy'],
   grounding_required: ['vendor_runtime', 'customer_config'],
   citations_required: ['vendor_runtime', 'customer_config'],
+  freshness_check: ['vendor_runtime', 'customer_config'],
   source_allowlist: ['vendor_runtime', 'customer_config', 'network_edge_proxy'],
+  doc_acl: ['vendor_runtime', 'customer_config', 'identity_provider', 'governance_policy'],
+  schema_validation: ['vendor_runtime', 'customer_config', 'client_application', 'api_gateway'],
   tool_use_allowlist: ['vendor_runtime', 'customer_config'],
+  scoped_credentials: ['vendor_runtime', 'customer_config', 'identity_provider', 'governance_policy'],
   human_in_the_loop: ['vendor_runtime', 'customer_config', 'governance_policy'],
+  kill_switch: ['vendor_admin_console', 'customer_config', 'api_gateway', 'governance_policy'],
   rate_limit_per_user: ['vendor_runtime', 'api_gateway'],
   rate_limit_per_tenant: ['vendor_runtime', 'vendor_admin_console', 'api_gateway'],
   egress_url_filter: ['network_edge_proxy', 'vendor_runtime'],
@@ -254,6 +267,7 @@ export const ALLOWED_SURFACES: SurfaceAllow = {
   export_redaction: ['vendor_runtime', 'data_loss_prevention'],
   model_version_pinning: ['vendor_admin_console', 'customer_config'],
   red_team_program: ['governance_policy'],
+  bias_eval: ['vendor_runtime', 'governance_policy'],
   abuse_reporting_channel: ['vendor_runtime', 'client_application', 'governance_policy'],
 };
 
@@ -268,4 +282,4 @@ export function isSurfaceAllowed(
 export const ALL_IN_PRODUCT_SURFACES = ALL_IN_PRODUCT;
 
 /** Closed-set version stamped into every persisted assessment payload. */
-export const CLOSED_SET_VERSION = '1.0.0';
+export const CLOSED_SET_VERSION = '1.1.0';

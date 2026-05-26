@@ -70,8 +70,20 @@ function evaluateOne(
     presenceRank(cur.presence) < presenceRank(best.presence) ? cur : best,
   );
 
+  // Only surface-up observations where the guardrail is actually supported.
+  // Including `not_supported` / `unknown` observations would falsely claim the
+  // guardrail is "present at" a surface where a source said it isn't.
   const presentAt: ControlSurface[] = Array.from(
-    new Set(hits.map((h) => h.appliedAt)),
+    new Set(
+      hits
+        .filter(
+          (h) =>
+            h.presence === 'built_in' ||
+            h.presence === 'configurable' ||
+            h.presence === 'optional_add_on',
+        )
+        .map((h) => h.appliedAt),
+    ),
   );
 
   switch (strongest.presence) {

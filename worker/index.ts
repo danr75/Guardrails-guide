@@ -227,14 +227,19 @@ async function runExtract(
   //   - > 30% of catalogue keys unknown/missing
   // Run on Sonnet 4.6 once with the same anchor; merge would belong here but
   // we keep v2 simple — escalation is a one-shot replacement.
+  // Count distinct URLs among primary-source evidence. Items without a URL
+  // can't contribute to source diversity, so filter them out before dedup —
+  // otherwise N url-less items collapse to a single `undefined` bucket and
+  // falsely trip the escalation gate (doubling cost on a good first pass).
   const distinctPrimary = new Set(
     normalized.evidence
       .filter(
         (e) =>
-          e.category === 'official_legal_terms' ||
-          e.category === 'security_compliance_docs' ||
-          e.category === 'vendor_product_docs' ||
-          e.category === 'public_technical_docs',
+          (e.category === 'official_legal_terms' ||
+            e.category === 'security_compliance_docs' ||
+            e.category === 'vendor_product_docs' ||
+            e.category === 'public_technical_docs') &&
+          e.url,
       )
       .map((e) => e.url),
   ).size;
@@ -245,8 +250,13 @@ async function runExtract(
         normalized.observed.length;
 
   if (distinctPrimary < 3 || unknownRatio > 0.3) {
-    usage.setPhase('escalation');
     send('progress', { type: 'phase', phase: 'escalation' });
+    // Track escalation tokens in a side tracker so a failed escalation can be
+    // discarded entirely — keeps metrics.byPhase consistent with the
+    // top-level `escalated` flag (no contradictory "escalation phase row
+    // populated but escalated: false" state in the CostBadge).
+    const escalationUsage = new UsageTracker();
+    escalationUsage.setPhase('escalation');
     try {
       const reextracted = await extractWithLlm(
         {
@@ -259,15 +269,16 @@ async function runExtract(
             deployment: input.deployment,
             aiShape: input.aiShape,
           },
-          usage,
+          usage: escalationUsage,
         },
         onProgress,
       );
-      // Prefer the escalation result; it has more capable extraction.
+      // Success: fold escalation usage into the main tracker.
+      usage.merge(escalationUsage);
       normalized = reextracted;
       escalated = true;
     } catch (e) {
-      // Escalation failure is best-effort: keep the Haiku result.
+      // Escalation failure: keep the Haiku result and discard escalationUsage.
       send('progress', {
         type: 'message',
         message: `Escalation skipped: ${(e as Error).message}`,

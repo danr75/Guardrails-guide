@@ -57,19 +57,24 @@ interface OpenRouterModel {
   };
 }
 
+function parsePrice(value: unknown): number | undefined {
+  // Number('') === 0 and Number(undefined) === NaN — we must distinguish
+  // "missing" from "explicitly zero" so a missing field doesn't shadow
+  // FALLBACK_PRICING with a zeroed rate.
+  if (typeof value !== 'string' || value === '') return undefined;
+  const n = Number(value);
+  return isFinite(n) ? n : undefined;
+}
+
 function parseOpenRouterPricing(payload: unknown): PricingTable {
   const out: PricingTable = {};
   const data = (payload as { data?: OpenRouterModel[] })?.data ?? [];
   for (const m of data) {
-    const input = Number(m.pricing?.prompt ?? '');
-    const output = Number(m.pricing?.completion ?? '');
-    if (!isFinite(input) || !isFinite(output)) continue;
-    const cached = Number(m.pricing?.input_cache_read ?? '');
-    out[m.id] = {
-      input,
-      output,
-      cachedInput: isFinite(cached) ? cached : undefined,
-    };
+    const input = parsePrice(m.pricing?.prompt);
+    const output = parsePrice(m.pricing?.completion);
+    if (input === undefined || output === undefined) continue;
+    const cachedInput = parsePrice(m.pricing?.input_cache_read);
+    out[m.id] = { input, output, cachedInput };
   }
   return out;
 }

@@ -151,7 +151,13 @@ export async function extractWithLlm(
     return normalizeExtraction(parseStructuredResponse(response.content, response.stop_reason));
   } catch (err) {
     // One recovery attempt: nudge for JSON-only, no tools (no more roundtrips).
-    if (err instanceof ExtractionError && err.code === 'unparseable_json') {
+    // Covers both `unparseable_json` (model wrote partial/malformed JSON) and
+    // `no_text` (loop exited at the roundtrip cap with stop_reason still
+    // 'pause_turn' and no text blocks emitted — force a final answer now).
+    if (
+      err instanceof ExtractionError &&
+      (err.code === 'unparseable_json' || err.code === 'no_text')
+    ) {
       onProgress({ type: 'message', message: 'Finalising structured output…' });
       messages.push({ role: 'assistant', content: response.content });
       messages.push({ role: 'user', content: buildJsonOnlyRetryMessage() });
