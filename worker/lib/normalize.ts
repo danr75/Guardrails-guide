@@ -216,6 +216,9 @@ export function normalizeGuardrails(
       result.push(g);
       continue;
     }
+    // Any collapse of two same-key entries is one dropped observation,
+    // regardless of which one wins — order-independent counter.
+    dropped += 1;
     const prev = result[prevIdx];
     let winner: ObservedGuardrail;
     let loser: ObservedGuardrail;
@@ -225,7 +228,6 @@ export function normalizeGuardrails(
     } else {
       winner = prev;
       loser = g;
-      dropped += 1;
     }
     const existing = winner.conflictingClaims ?? [];
     const losingClaim = {

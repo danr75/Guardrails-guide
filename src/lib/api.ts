@@ -213,9 +213,19 @@ function parseSseChunk(chunk: string): { event: string; data: unknown } | null {
   const lines = chunk.split('\n');
   let event = 'message';
   const dataLines: string[] = [];
-  for (const line of lines) {
-    if (line.startsWith('event:')) event = line.slice(6).trim();
-    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+  for (const rawLine of lines) {
+    // Lines may end with \r before the \n we split on (SSE permits \r\n).
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+    if (line === '' || line.startsWith(':')) continue; // blank line / comment
+    const colon = line.indexOf(':');
+    const field = colon === -1 ? line : line.slice(0, colon);
+    let value = colon === -1 ? '' : line.slice(colon + 1);
+    // SSE spec: strip exactly one optional leading space, not all whitespace.
+    // .trim()-ing would corrupt leading whitespace inside multi-line data
+    // payloads' string literals.
+    if (value.startsWith(' ')) value = value.slice(1);
+    if (field === 'event') event = value;
+    else if (field === 'data') dataLines.push(value);
   }
   if (dataLines.length === 0) return null;
   try {

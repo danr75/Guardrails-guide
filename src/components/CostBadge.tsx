@@ -62,14 +62,19 @@ export function CostBadge({ metrics }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(metrics.byPhase).map(([p, u]) => (
-                  <tr key={p}>
-                    <td className="text-ink-800">{p}</td>
-                    <td className="text-right tabular-nums">{u.callCount}</td>
-                    <td className="text-right tabular-nums">{u.inputTokens}</td>
-                    <td className="text-right tabular-nums">{u.outputTokens}</td>
-                  </tr>
-                ))}
+                {Object.entries(metrics.byPhase)
+                  .filter(
+                    (entry): entry is [string, NonNullable<(typeof entry)[1]>] =>
+                      entry[1] !== undefined,
+                  )
+                  .map(([p, u]) => (
+                    <tr key={p}>
+                      <td className="text-ink-800">{p}</td>
+                      <td className="text-right tabular-nums">{u.callCount}</td>
+                      <td className="text-right tabular-nums">{u.inputTokens}</td>
+                      <td className="text-right tabular-nums">{u.outputTokens}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

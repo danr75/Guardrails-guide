@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import type { PreflightProductCandidate } from '../lib/api';
 import {
   AI_SHAPE_LABELS,
@@ -56,7 +56,7 @@ export function ProductPicker({ candidates, onSelect, onCancel }: Props) {
         </button>
       </header>
 
-      <ul className="space-y-2">
+      <ul className="space-y-2" aria-label="Candidate products">
         {candidates.map((c) => {
           const isActive = keyFor(c) === activeKey;
           return (
@@ -70,6 +70,8 @@ export function ProductPicker({ candidates, onSelect, onCancel }: Props) {
               <button
                 onClick={() => switchCandidate(c)}
                 className="w-full text-left px-3 py-2"
+                aria-pressed={isActive}
+                aria-label={`Select ${c.name} by ${c.vendor}`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -147,17 +149,54 @@ function ChipRow<T extends string>({
   value: T | undefined;
   onChange: (v: T) => void;
 }) {
+  const groupId = useId();
+  const containerRef = useRef<HTMLUListElement>(null);
+  // First option is the focus stop when nothing is selected — standard
+  // radiogroup behaviour (only one tab stop per group).
+  const focusIdx = value === undefined ? 0 : Math.max(0, options.indexOf(value));
+
+  function onKeyDown(e: KeyboardEvent<HTMLUListElement>) {
+    if (options.length === 0) return;
+    const isArrow =
+      e.key === 'ArrowLeft' ||
+      e.key === 'ArrowRight' ||
+      e.key === 'ArrowUp' ||
+      e.key === 'ArrowDown';
+    if (!isArrow) return;
+    e.preventDefault();
+    const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1;
+    const next = (focusIdx + dir + options.length) % options.length;
+    onChange(options[next]);
+    // Move focus to the newly-selected radio.
+    const buttons = containerRef.current?.querySelectorAll<HTMLButtonElement>(
+      'button[role="radio"]',
+    );
+    buttons?.[next]?.focus();
+  }
+
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-wider text-ink-500 font-semibold mb-1">
+      <div
+        id={`${groupId}-label`}
+        className="text-[11px] uppercase tracking-wider text-ink-500 font-semibold mb-1"
+      >
         {label}
       </div>
-      <ul className="flex flex-wrap gap-1.5">
-        {options.map((opt) => {
+      <ul
+        ref={containerRef}
+        role="radiogroup"
+        aria-labelledby={`${groupId}-label`}
+        className="flex flex-wrap gap-1.5"
+        onKeyDown={onKeyDown}
+      >
+        {options.map((opt, i) => {
           const active = opt === value;
           return (
             <li key={opt}>
               <button
+                role="radio"
+                aria-checked={active}
+                tabIndex={i === focusIdx ? 0 : -1}
                 onClick={() => onChange(opt)}
                 className={
                   'rounded-md border px-2 py-1 text-xs transition ' +

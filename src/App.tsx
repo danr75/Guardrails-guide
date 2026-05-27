@@ -15,6 +15,7 @@ import { ControlPlacementMap } from './components/ControlPlacementMap';
 import { GuardrailMatrix } from './components/GuardrailMatrix';
 import { GapReport } from './components/GapReport';
 import { CostBadge } from './components/CostBadge';
+import { CatalogueBrowse } from './components/CatalogueBrowse';
 
 type Status =
   | { kind: 'idle' }
@@ -22,7 +23,7 @@ type Status =
   | { kind: 'picking'; candidates: PreflightProductCandidate[] }
   | { kind: 'extracting'; progress: ExtractProgressEvent[]; startedAt: number }
   | { kind: 'done'; pkg: AssessmentPackage }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; code?: string };
 
 export function App() {
   const [query, setQuery] = useState('');
@@ -55,7 +56,7 @@ export function App() {
         setStatus({ kind: 'picking', candidates: res.candidates });
       }
     } catch (err) {
-      setStatus({ kind: 'error', message: messageFor(err) });
+      setStatus({ kind: 'error', message: messageFor(err), code: codeFor(err) });
     }
   }
 
@@ -95,7 +96,7 @@ export function App() {
       setStatus({ kind: 'done', pkg });
     } catch (err) {
       if (controller.signal.aborted) return;
-      setStatus({ kind: 'error', message: messageFor(err) });
+      setStatus({ kind: 'error', message: messageFor(err), code: codeFor(err) });
     }
   }
 
@@ -157,18 +158,22 @@ export function App() {
           <ExtractionProgress
             events={status.progress}
             startedAt={status.startedAt}
+            onCancel={reset}
           />
         )}
 
         {status.kind === 'error' && (
-          <section className="card card-pad">
-            <div className="rounded-md border border-rose-300 bg-rose-50 text-rose-800 text-sm px-3 py-2">
-              {status.message}
-            </div>
-            <button onClick={reset} className="btn mt-3">
-              Try again
-            </button>
-          </section>
+          <>
+            <section className="card card-pad">
+              <div className="rounded-md border border-rose-300 bg-rose-50 text-rose-800 text-sm px-3 py-2">
+                {status.message}
+              </div>
+              <button onClick={reset} className="btn mt-3">
+                Try again
+              </button>
+            </section>
+            {status.code === 'no_key' && <CatalogueBrowse defaultOpen />}
+          </>
         )}
 
         {status.kind === 'done' && (
@@ -195,6 +200,8 @@ export function App() {
             {status.pkg.metrics && <CostBadge metrics={status.pkg.metrics} />}
           </>
         )}
+
+        <CatalogueBrowse />
       </div>
     </div>
   );
@@ -208,4 +215,8 @@ function messageFor(err: unknown): string {
   }
   if (err instanceof Error) return err.message;
   return 'Unknown error';
+}
+
+function codeFor(err: unknown): string | undefined {
+  return err instanceof ApiError ? err.code : undefined;
 }
