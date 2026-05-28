@@ -100,7 +100,18 @@ export interface AssessmentPackage {
   validations?: Partial<
     Record<
       GuardrailKey,
-      { verdict: ValidationVerdict; note?: string; validatedAt: string }
+      {
+        verdict: ValidationVerdict;
+        note?: string;
+        /**
+         * When verdict is `refuted_or_different`, the surface where the
+         * user says the guardrail actually lives. Drives the placement map.
+         */
+        correctedSurface?: ControlSurface;
+        /** Optional URL the user provides to back up their correction. */
+        sourceUrl?: string;
+        validatedAt: string;
+      }
     >
   >;
   metrics?: AssessmentMetrics;

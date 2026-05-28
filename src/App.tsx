@@ -145,17 +145,29 @@ export function App() {
   }
 
   // Records the user's own verdict on a guardrail. Kept separate from the
-  // deterministic gap status; auto-save persists it.
+  // deterministic gap status; auto-save persists it. `patch` carries optional
+  // user-supplied correction data — surface they say is the real location, and
+  // a source URL backing the claim — used by the placement map.
   function setValidation(
     key: GuardrailKey,
     verdict: ValidationVerdict,
-    note?: string,
+    patch?: {
+      note?: string;
+      correctedSurface?: import('./schemas/guardrails').ControlSurface;
+      sourceUrl?: string;
+    },
   ) {
     setStatus((s) => {
       if (s.kind !== 'done') return s;
       const validations = {
         ...(s.pkg.validations ?? {}),
-        [key]: { verdict, note, validatedAt: new Date().toISOString() },
+        [key]: {
+          verdict,
+          note: patch?.note,
+          correctedSurface: patch?.correctedSurface,
+          sourceUrl: patch?.sourceUrl,
+          validatedAt: new Date().toISOString(),
+        },
       };
       return { kind: 'done', pkg: { ...s.pkg, validations } };
     });
@@ -292,7 +304,10 @@ export function App() {
                 </div>
               )}
             </section>
-            <ControlPlacementMap gaps={status.pkg.gaps} />
+            <ControlPlacementMap
+              gaps={status.pkg.gaps}
+              validations={status.pkg.validations}
+            />
             <GapReport gaps={status.pkg.gaps} />
             <CoveragePanel gaps={status.pkg.gaps} />
             <GuardrailMatrix

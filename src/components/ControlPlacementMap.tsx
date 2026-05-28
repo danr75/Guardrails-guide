@@ -6,12 +6,28 @@ import {
   type ControlZone,
   type GuardrailKey,
 } from '../schemas/guardrails';
-import type { GapResult } from '../schemas/package';
+import type { AssessmentPackage, GapResult } from '../schemas/package';
 import { CATALOGUE_BY_KEY } from '../rules/guardrailCatalogue';
+import { effectivePlacement } from '../lib/placement';
 
 interface Props {
   gaps: GapResult[];
+  validations?: AssessmentPackage['validations'];
 }
+
+const BADGE_GLYPH: Record<'none' | 'confirmed' | 'refuted' | 'needs_review', string> = {
+  none: '',
+  confirmed: '✓',
+  refuted: '✎',
+  needs_review: '?',
+};
+
+const BADGE_TITLE: Record<'none' | 'confirmed' | 'refuted' | 'needs_review', string> = {
+  none: '',
+  confirmed: 'You confirmed this finding',
+  refuted: 'You disagreed with this finding',
+  needs_review: 'You flagged this for review',
+};
 
 const ZONES: { id: ControlZone; label: string; sub: string }[] = [
   { id: 'user_boundary', label: 'User boundary', sub: 'Browser / client app' },
@@ -42,9 +58,13 @@ interface Chip {
   surface: ControlSurface;
   label: string;
   rationale: string;
+  badge: 'none' | 'confirmed' | 'refuted' | 'needs_review';
 }
 
-function placementChips(gaps: GapResult[]): Record<ControlZone, Chip[]> {
+function placementChips(
+  gaps: GapResult[],
+  validations: AssessmentPackage['validations'],
+): Record<ControlZone, Chip[]> {
   const byZone: Record<ControlZone, Chip[]> = {
     user_boundary: [],
     product_runtime: [],
@@ -54,35 +74,23 @@ function placementChips(gaps: GapResult[]): Record<ControlZone, Chip[]> {
   for (const g of gaps) {
     const def = CATALOGUE_BY_KEY[g.key];
     const label = def?.label ?? g.key;
-
-    if (g.status === 'missing') {
-      // Place by suggested compensation; fall back to external_controls zone.
-      const suggestion = g.compensations?.[0]?.surface ?? 'governance_policy';
-      byZone[SURFACE_TO_ZONE[suggestion]].push({
-        key: g.key,
-        status: g.status,
-        surface: suggestion,
-        label,
-        rationale: g.rationale,
-      });
-      continue;
-    }
-    const surfaces = g.presentAt && g.presentAt.length > 0 ? g.presentAt : ['vendor_runtime' as ControlSurface];
-    for (const s of surfaces) {
+    const eff = effectivePlacement(g, validations?.[g.key]);
+    for (const s of eff.surfaces) {
       byZone[SURFACE_TO_ZONE[s]].push({
         key: g.key,
-        status: g.status,
+        status: eff.status,
         surface: s,
         label,
         rationale: g.rationale,
+        badge: eff.badge,
       });
     }
   }
   return byZone;
 }
 
-export function ControlPlacementMap({ gaps }: Props) {
-  const chips = placementChips(gaps);
+export function ControlPlacementMap({ gaps, validations }: Props) {
+  const chips = placementChips(gaps, validations);
 
   return (
     <details open className="card card-pad">
@@ -91,8 +99,9 @@ export function ControlPlacementMap({ gaps }: Props) {
           Control placement map
         </h3>
         <p className="text-xs text-ink-500 mt-0.5">
-          Where each required guardrail lives. Missing guardrails appear in
-          the column where you should add an external control.
+          Where each required guardrail lives. Missing guardrails sit at the
+          in-product surface where they should exist — confirm a gap in the
+          matrix to move it to the external-controls column.
         </p>
       </summary>
 
@@ -124,6 +133,14 @@ export function ControlPlacementMap({ gaps }: Props) {
                       <span className="text-[11px] text-ink-900 font-medium truncate">
                         {c.label}
                       </span>
+                      {c.badge !== 'none' && (
+                        <span
+                          className="text-[9px] text-ink-500 shrink-0"
+                          title={BADGE_TITLE[c.badge]}
+                        >
+                          {BADGE_GLYPH[c.badge]}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] text-ink-600 truncate">
                       {CONTROL_SURFACE_LABELS[c.surface]}
