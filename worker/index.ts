@@ -102,6 +102,7 @@ async function handlePreflight(req: Request, env: Env): Promise<Response> {
       apiKey: env.OPENROUTER_API_KEY,
       model: env.OPENROUTER_MODEL_PREFLIGHT || DEFAULT_PREFLIGHT,
       usage,
+      signal: req.signal,
     });
     return okJson(env, {
       candidates,
@@ -148,25 +149,40 @@ async function handleExtract(req: Request, env: Env): Promise<Response> {
   const encoder = new TextEncoder();
 
   const send = (event: string, data: unknown) => {
+    // Once the client disconnects, writing further events throws on a closed
+    // writer; skip silently rather than fanning a noisy error per event.
+    if (req.signal.aborted) return;
     void writer.write(
       encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
     );
   };
 
   // Run the loop asynchronously and stream events. Don't await inline — the
-  // response needs to flush headers immediately.
-  void runExtract(env, {
-    query,
-    product,
-    vendor,
-    deployment,
-    aiShape,
-  }, send)
+  // response needs to flush headers immediately. `req.signal` aborts when the
+  // browser disconnects (refresh, navigation, Cancel button), which cascades
+  // into the OpenRouter fetches so we stop burning tokens on a dead stream.
+  void runExtract(
+    env,
+    {
+      query,
+      product,
+      vendor,
+      deployment,
+      aiShape,
+    },
+    send,
+    req.signal,
+  )
     .catch(() => {
-      // Already reported via send('error', ...) — swallow.
+      // Already reported via send('error', ...) — or the abort is expected
+      // (browser disconnected). Either way, swallow.
     })
     .finally(() => {
-      void writer.close();
+      try {
+        void writer.close();
+      } catch {
+        // Writer may already be closed if the abort path tore it down.
+      }
     });
 
   return new Response(readable, {
@@ -193,6 +209,7 @@ async function runExtract(
   env: Env,
   input: ExtractRunInput,
   send: (event: string, data: unknown) => void,
+  signal: AbortSignal,
 ): Promise<void> {
   const usage = new UsageTracker();
   usage.setPhase('extraction');
@@ -214,10 +231,13 @@ async function runExtract(
           aiShape: input.aiShape,
         },
         usage,
+        signal,
       },
       onProgress,
     );
   } catch (e) {
+    // Browser disconnected mid-flight — fetches were aborted, nothing to report.
+    if (signal.aborted) return;
     send('error', errorEnvelope(e, 'extraction'));
     return;
   }
@@ -249,7 +269,7 @@ async function runExtract(
       : normalized.observed.filter((o) => o.presence === 'unknown').length /
         normalized.observed.length;
 
-  if (distinctPrimary < 3 || unknownRatio > 0.3) {
+  if (!signal.aborted && (distinctPrimary < 3 || unknownRatio > 0.3)) {
     send('progress', { type: 'phase', phase: 'escalation' });
     // Track escalation tokens in a side tracker so a failed escalation can be
     // discarded entirely — keeps metrics.byPhase consistent with the
@@ -270,6 +290,7 @@ async function runExtract(
             aiShape: input.aiShape,
           },
           usage: escalationUsage,
+          signal,
         },
         onProgress,
       );
@@ -278,6 +299,7 @@ async function runExtract(
       normalized = reextracted;
       escalated = true;
     } catch (e) {
+      if (signal.aborted) return;
       // Escalation failure: keep the Haiku result and discard escalationUsage.
       send('progress', {
         type: 'message',
@@ -285,6 +307,8 @@ async function runExtract(
       });
     }
   }
+
+  if (signal.aborted) return;
 
   const pricing = await fetchPricing();
   const metricsRaw = usage.snapshot({ escalated, estimatedUsd: 0 });

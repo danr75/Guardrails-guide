@@ -47,6 +47,8 @@ export interface ExtractOptions {
   maxTokens: number;
   anchor: ExtractionAnchor;
   usage?: UsageTracker;
+  /** Aborts the in-flight LLM calls when the client disconnects. */
+  signal?: AbortSignal;
 }
 
 export type ProgressEvent =
@@ -115,6 +117,7 @@ export async function extractWithLlm(
     tools: [...WEB_SEARCH_TOOLS],
     thinking: { type: 'adaptive' },
     cachePrompt: true,
+    signal: opts.signal,
   });
   opts.usage?.record(response, opts.model);
 
@@ -134,6 +137,7 @@ export async function extractWithLlm(
       tools: [...WEB_SEARCH_TOOLS],
       thinking: { type: 'adaptive' },
       cachePrompt: true,
+      signal: opts.signal,
     });
     opts.usage?.record(response, opts.model);
   }
@@ -167,6 +171,7 @@ export async function extractWithLlm(
         maxTokens: opts.maxTokens,
         systemPrompt: EXTRACTION_SYSTEM_PROMPT,
         cachePrompt: true,
+        signal: opts.signal,
       });
       opts.usage?.record(retry, opts.model);
       return normalizeExtraction(parseStructuredResponse(retry.content, retry.stop_reason));

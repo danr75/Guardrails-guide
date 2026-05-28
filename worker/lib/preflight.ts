@@ -54,6 +54,7 @@ export interface PreflightOptions {
   apiKey: string;
   model: string;
   usage?: UsageTracker;
+  signal?: AbortSignal;
 }
 
 export async function preflight(
@@ -68,6 +69,7 @@ export async function preflight(
       maxTokens: PREFLIGHT_MAX_TOKENS,
       systemPrompt: PREFLIGHT_SYSTEM_PROMPT,
       cachePrompt: true,
+      signal: opts.signal,
     },
   );
   opts.usage?.record(response, opts.model);

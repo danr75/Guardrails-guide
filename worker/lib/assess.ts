@@ -37,6 +37,8 @@ export interface CallApiOptions {
   tools?: unknown[];
   thinking?: { type: string };
   cachePrompt?: boolean;
+  /** Aborts the in-flight fetch when the caller goes away. */
+  signal?: AbortSignal;
 }
 
 export class LlmCallError extends Error {
@@ -113,8 +115,11 @@ export async function callApi(
         'X-Title': 'Guardrail Tool',
       },
       body: JSON.stringify(body),
+      signal: options.signal,
     });
   } catch (e) {
+    // Re-throw aborts as-is so callers can distinguish them from network errors.
+    if ((e as Error).name === 'AbortError') throw e;
     throw new LlmCallError(
       `Network error reaching OpenRouter: ${(e as Error).message}`,
       502,

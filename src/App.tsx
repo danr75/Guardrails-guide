@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   ApiError,
   extractPackage,
@@ -32,6 +32,20 @@ export function App() {
   // aborts the prior stream and prevents its stale handlers from overwriting
   // newer UI state.
   const abortRef = useRef<AbortController | null>(null);
+
+  // Warn before refresh / navigation while an extract is in flight — losing
+  // the SSE stream means the worker keeps burning tokens with no UI to receive
+  // the result. The worker-side AbortSignal stops that cost bleed, but
+  // discouraging the refresh in the first place is the better UX.
+  useEffect(() => {
+    if (status.kind !== 'preflighting' && status.kind !== 'extracting') return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [status.kind]);
 
   async function handleQuerySubmit(e: FormEvent) {
     e.preventDefault();
