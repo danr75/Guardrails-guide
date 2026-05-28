@@ -251,8 +251,11 @@ export function normalizeExtraction(
 ): NormalizedExtraction {
   const { evidence, dropped: droppedEv } = normalizeEvidence(raw.evidence);
   const { observed, dropped: droppedGr } = normalizeGuardrails(raw.guardrails, evidence);
+  const rawProduct = raw.product ?? {};
   return {
-    product: raw.product ?? {},
+    // Sanitize `version` to a non-empty string (or drop it) — the rest of the
+    // product identity is anchored in index.ts from the picker input.
+    product: { ...rawProduct, version: str(rawProduct.version) },
     evidence,
     observed,
     dropped: { evidence: droppedEv, guardrails: droppedGr },

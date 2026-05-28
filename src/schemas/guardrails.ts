@@ -283,3 +283,22 @@ export const ALL_IN_PRODUCT_SURFACES = ALL_IN_PRODUCT;
 
 /** Closed-set version stamped into every persisted assessment payload. */
 export const CLOSED_SET_VERSION = '1.1.0';
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/* Validation — the USER's own verdict on a guardrail, recorded after they   */
+/* review the evidence. Kept separate from the deterministic GapStatus so    */
+/* the tool's verdict stays immutable; the user's verdict may differ.        */
+/* ──────────────────────────────────────────────────────────────────────── */
+
+export const VALIDATION_VERDICTS = [
+  'confirmed',
+  'refuted_or_different',
+  'needs_review',
+] as const;
+export type ValidationVerdict = (typeof VALIDATION_VERDICTS)[number];
+
+export const VALIDATION_VERDICT_LABELS: Record<ValidationVerdict, string> = {
+  confirmed: 'Confirmed',
+  refuted_or_different: 'Refuted / different',
+  needs_review: 'Needs review',
+};

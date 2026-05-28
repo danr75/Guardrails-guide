@@ -31,7 +31,7 @@ Workflow:
 
 Shape:
 {
-  "product": { "name": string, "vendor": string, "category": string, "url"?: string },
+  "product": { "name": string, "vendor": string, "category": string, "url"?: string, "version"?: string },
   "evidence": [
     {
       "id": string,                     // short token, unique within this response
@@ -66,6 +66,7 @@ Rules:
 - "optional_add_on" = vendor offers it as a separate product, SKU, or tier.
 - "not_supported" = vendor states the capability is not provided.
 - "unknown" = couldn't find direct evidence. Prefer "unknown" over invention.
+- "version" = the specific product version / release / tier this assessment reflects (e.g. an edition, plan, or dated release), ONLY if a primary source states it. Omit it if not clearly stated — never guess.
 - NEVER invent evidence URLs. NEVER invent guardrails. If a key has no evidence, OMIT it from "guardrails".
 - Every "evidenceIds" entry MUST refer to an "id" in the same response.
 

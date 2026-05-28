@@ -325,6 +325,7 @@ async function runExtract(
       vendor: normalized.product.vendor ?? input.vendor,
       category: normalized.product.category ?? 'AI product',
       url: normalized.product.url,
+      version: normalized.product.version,
       deployment: input.deployment,
       aiShape: input.aiShape,
     },
