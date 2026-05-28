@@ -42,51 +42,53 @@ export function GapReport({ gaps }: Props) {
   const missingCount = gaps.filter((g) => g.status === 'missing').length;
 
   return (
-    <section className="card card-pad space-y-3">
-      <header>
-        <h3 className="text-base font-semibold text-ink-900">Gap report</h3>
-        <p className="text-xs text-ink-500">
+    <details open className="card card-pad">
+      <summary className="cursor-pointer">
+        <h3 className="inline text-base font-semibold text-ink-900">Gap report</h3>
+        <p className="text-xs text-ink-500 mt-0.5">
           {missingCount === 0
             ? 'No required guardrails are missing.'
             : `${missingCount} required guardrail${missingCount === 1 ? '' : 's'} not provided by the product — group by where to enforce externally.`}
         </p>
-      </header>
+      </summary>
 
-      {buckets.length === 0 ? (
-        <p className="text-xs text-ink-500 italic">Nothing to report.</p>
-      ) : (
-        <ul className="space-y-3">
-          {buckets.map((b) => (
-            <li key={b.surface}>
-              <div className="text-[11px] uppercase tracking-wider font-semibold text-ink-700">
-                {CONTROL_SURFACE_LABELS[b.surface]}
-              </div>
-              <ul className="mt-1 space-y-1.5">
-                {b.items.map((item, i) => {
-                  const def = CATALOGUE_BY_KEY[item.gap.key];
-                  return (
-                    <li
-                      key={`${item.gap.key}-${i}`}
-                      className="rounded-md border border-ink-300 bg-white px-3 py-2"
-                    >
-                      <div className="text-sm font-medium text-ink-900">
-                        {def?.label ?? item.gap.key}
-                      </div>
-                      <p className="text-[11px] text-ink-600 mt-0.5">{def?.threat}</p>
-                      <p className="text-xs text-ink-800 mt-1">
-                        <strong>Add:</strong> {item.control}
-                      </p>
-                      {item.notes && (
-                        <p className="text-[11px] text-ink-500 mt-0.5">{item.notes}</p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+      <div className="mt-3 space-y-3">
+        {buckets.length === 0 ? (
+          <p className="text-xs text-ink-500 italic">Nothing to report.</p>
+        ) : (
+          <ul className="space-y-3">
+            {buckets.map((b) => (
+              <li key={b.surface}>
+                <div className="text-[11px] uppercase tracking-wider font-semibold text-ink-700">
+                  {CONTROL_SURFACE_LABELS[b.surface]}
+                </div>
+                <ul className="mt-1 space-y-1.5">
+                  {b.items.map((item, i) => {
+                    const def = CATALOGUE_BY_KEY[item.gap.key];
+                    return (
+                      <li
+                        key={`${item.gap.key}-${i}`}
+                        className="rounded-md border border-ink-300 bg-white px-3 py-2"
+                      >
+                        <div className="text-sm font-medium text-ink-900">
+                          {def?.label ?? item.gap.key}
+                        </div>
+                        <p className="text-[11px] text-ink-600 mt-0.5">{def?.threat}</p>
+                        <p className="text-xs text-ink-800 mt-1">
+                          <strong>Add:</strong> {item.control}
+                        </p>
+                        {item.notes && (
+                          <p className="text-[11px] text-ink-500 mt-0.5">{item.notes}</p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </details>
   );
 }

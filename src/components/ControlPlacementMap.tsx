@@ -85,55 +85,59 @@ export function ControlPlacementMap({ gaps }: Props) {
   const chips = placementChips(gaps);
 
   return (
-    <section className="card card-pad space-y-3">
-      <header>
-        <h3 className="text-base font-semibold text-ink-900">Control placement map</h3>
-        <p className="text-xs text-ink-500">
+    <details open className="card card-pad">
+      <summary className="cursor-pointer">
+        <h3 className="inline text-base font-semibold text-ink-900">
+          Control placement map
+        </h3>
+        <p className="text-xs text-ink-500 mt-0.5">
           Where each required guardrail lives. Missing guardrails appear in
           the column where you should add an external control.
         </p>
-      </header>
+      </summary>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {ZONES.map((z) => (
-          <div
-            key={z.id}
-            className="rounded-lg border border-ink-300 bg-slate-50/60 p-2 min-h-[160px]"
-          >
-            <div className="text-[11px] uppercase tracking-wider font-semibold text-ink-700">
-              {z.label}
+      <div className="mt-3 space-y-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {ZONES.map((z) => (
+            <div
+              key={z.id}
+              className="rounded-lg border border-ink-300 bg-slate-50/60 p-2 min-h-[160px]"
+            >
+              <div className="text-[11px] uppercase tracking-wider font-semibold text-ink-700">
+                {z.label}
+              </div>
+              <div className="text-[10px] text-ink-500 mb-2">{z.sub}</div>
+              <ul className="space-y-1.5">
+                {chips[z.id].length === 0 && (
+                  <li className="text-[11px] text-ink-400 italic">No guardrails placed.</li>
+                )}
+                {chips[z.id].map((c, i) => (
+                  <li
+                    key={`${c.key}-${c.surface}-${i}`}
+                    className={
+                      'rounded-md border px-2 py-1 ' + STATUS_BORDER[c.status]
+                    }
+                    title={`${GAP_STATUS_LABELS[c.status]} · ${CONTROL_SURFACE_LABELS[c.surface]} — ${c.rationale}`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className={'inline-block w-1.5 h-1.5 rounded-full shrink-0 ' + STATUS_DOT[c.status]} />
+                      <span className="text-[11px] text-ink-900 font-medium truncate">
+                        {c.label}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-ink-600 truncate">
+                      {CONTROL_SURFACE_LABELS[c.surface]}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="text-[10px] text-ink-500 mb-2">{z.sub}</div>
-            <ul className="space-y-1.5">
-              {chips[z.id].length === 0 && (
-                <li className="text-[11px] text-ink-400 italic">No guardrails placed.</li>
-              )}
-              {chips[z.id].map((c, i) => (
-                <li
-                  key={`${c.key}-${c.surface}-${i}`}
-                  className={
-                    'rounded-md border px-2 py-1 ' + STATUS_BORDER[c.status]
-                  }
-                  title={`${GAP_STATUS_LABELS[c.status]} · ${CONTROL_SURFACE_LABELS[c.surface]} — ${c.rationale}`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className={'inline-block w-1.5 h-1.5 rounded-full shrink-0 ' + STATUS_DOT[c.status]} />
-                    <span className="text-[11px] text-ink-900 font-medium truncate">
-                      {c.label}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-ink-600 truncate">
-                    {CONTROL_SURFACE_LABELS[c.surface]}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      <Legend />
-    </section>
+        <Legend />
+      </div>
+    </details>
   );
 }
 

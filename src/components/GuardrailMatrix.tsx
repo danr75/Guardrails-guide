@@ -30,14 +30,14 @@ export function GuardrailMatrix({ gaps }: Props) {
     (a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status],
   );
   return (
-    <section className="card card-pad space-y-2">
-      <header>
-        <h3 className="text-base font-semibold text-ink-900">Guardrail matrix</h3>
-        <p className="text-xs text-ink-500">
+    <details open className="card card-pad">
+      <summary className="cursor-pointer">
+        <h3 className="inline text-base font-semibold text-ink-900">Guardrail matrix</h3>
+        <p className="text-xs text-ink-500 mt-0.5">
           Disputed and missing guardrails sort first. Hover a row for the rationale.
         </p>
-      </header>
-      <div className="overflow-x-auto">
+      </summary>
+      <div className="mt-3 overflow-x-auto">
         <table className="min-w-[680px] w-full text-xs border-separate border-spacing-0">
           <thead>
             <tr className="text-left text-ink-600">
@@ -93,6 +93,6 @@ export function GuardrailMatrix({ gaps }: Props) {
           </tbody>
         </table>
       </div>
-    </section>
+    </details>
   );
 }
