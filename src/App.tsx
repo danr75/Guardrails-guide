@@ -6,16 +6,27 @@ import {
   type ExtractProgressEvent,
   type PreflightProductCandidate,
 } from './lib/api';
-import type { AiShape, Deployment } from './schemas/guardrails';
+import {
+  AI_SHAPE_LABELS,
+  CLOSED_SET_VERSION,
+  DEPLOYMENT_LABELS,
+  type AiShape,
+  type Deployment,
+  type GuardrailKey,
+  type ValidationVerdict,
+} from './schemas/guardrails';
 import type { AssessmentPackage } from './schemas/package';
 import { evaluateGuardrails } from './rules/engine';
+import { isStale, saveAssessment } from './lib/storage';
 import { ProductPicker } from './components/ProductPicker';
 import { ExtractionProgress } from './components/ExtractionProgress';
 import { ControlPlacementMap } from './components/ControlPlacementMap';
 import { GuardrailMatrix } from './components/GuardrailMatrix';
 import { GapReport } from './components/GapReport';
+import { CoveragePanel } from './components/CoveragePanel';
 import { CostBadge } from './components/CostBadge';
 import { CatalogueBrowse } from './components/CatalogueBrowse';
+import { SavedAssessments } from './components/SavedAssessments';
 
 type Status =
   | { kind: 'idle' }
@@ -25,13 +36,30 @@ type Status =
   | { kind: 'done'; pkg: AssessmentPackage }
   | { kind: 'error'; message: string; code?: string };
 
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
+
 export function App() {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
+  // Bumped on save/delete so the saved-assessments list re-reads localStorage.
+  const [savedVersion, setSavedVersion] = useState(0);
+  // Shown when a loaded/imported package predated the current catalogue and its
+  // gaps were recomputed.
+  const [loadWarning, setLoadWarning] = useState<string | null>(null);
   // Tracks the currently-active extract so a second submission (or a reset)
   // aborts the prior stream and prevents its stale handlers from overwriting
   // newer UI state.
   const abortRef = useRef<AbortController | null>(null);
+
+  // Persist whenever we land on (or edit) a completed assessment. Validation
+  // edits produce a new pkg object, so verdicts are re-saved automatically.
+  useEffect(() => {
+    if (status.kind !== 'done') return;
+    if (saveAssessment(status.pkg)) setSavedVersion((v) => v + 1);
+  }, [status]);
 
   // Warn before refresh / navigation while an extract is in flight — losing
   // the SSE stream means the worker keeps burning tokens with no UI to receive
@@ -53,6 +81,7 @@ export function App() {
     if (!q) return;
     abortRef.current?.abort();
     abortRef.current = null;
+    setLoadWarning(null);
     setStatus({ kind: 'preflighting' });
     try {
       const res = await preflightQuery(q);
@@ -85,6 +114,7 @@ export function App() {
     abortRef.current = controller;
     const startedAt = Date.now();
     const events: ExtractProgressEvent[] = [];
+    setLoadWarning(null);
     setStatus({ kind: 'extracting', progress: events, startedAt });
     try {
       const pkgWithoutGaps = await extractPackage(
@@ -114,9 +144,47 @@ export function App() {
     }
   }
 
+  // Records the user's own verdict on a guardrail. Kept separate from the
+  // deterministic gap status; auto-save persists it.
+  function setValidation(
+    key: GuardrailKey,
+    verdict: ValidationVerdict,
+    note?: string,
+  ) {
+    setStatus((s) => {
+      if (s.kind !== 'done') return s;
+      const validations = {
+        ...(s.pkg.validations ?? {}),
+        [key]: { verdict, note, validatedAt: new Date().toISOString() },
+      };
+      return { kind: 'done', pkg: { ...s.pkg, validations } };
+    });
+  }
+
+  // Re-open a saved or imported assessment. If it predates the current
+  // catalogue, recompute its gaps so the verdicts reflect today's rules.
+  function loadPkg(pkg: AssessmentPackage) {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    if (isStale(pkg)) {
+      const gaps = evaluateGuardrails(pkg.observed);
+      setLoadWarning(
+        `This assessment was captured against guardrail catalogue v${pkg.closedSetVersion}. Gaps were recomputed against the current v${CLOSED_SET_VERSION}; evidence and observations are unchanged.`,
+      );
+      setStatus({
+        kind: 'done',
+        pkg: { ...pkg, gaps, closedSetVersion: CLOSED_SET_VERSION },
+      });
+    } else {
+      setLoadWarning(null);
+      setStatus({ kind: 'done', pkg });
+    }
+  }
+
   function reset() {
     abortRef.current?.abort();
     abortRef.current = null;
+    setLoadWarning(null);
     setStatus({ kind: 'idle' });
   }
 
@@ -197,24 +265,49 @@ export function App() {
                 <div>
                   <h2 className="text-base font-semibold text-ink-900">
                     {status.pkg.product.name}
+                    {status.pkg.product.version && (
+                      <span className="ml-2 align-middle inline-flex items-center px-1.5 py-0.5 rounded border border-ink-300 bg-slate-50 text-[11px] font-normal text-ink-600">
+                        v{status.pkg.product.version}
+                      </span>
+                    )}
                   </h2>
                   <p className="text-xs text-ink-500">
-                    {status.pkg.product.vendor} · {status.pkg.product.deployment} ·{' '}
-                    {status.pkg.product.aiShape}
+                    {status.pkg.product.vendor} ·{' '}
+                    {DEPLOYMENT_LABELS[status.pkg.product.deployment]} ·{' '}
+                    {AI_SHAPE_LABELS[status.pkg.product.aiShape]}
+                  </p>
+                  <p className="text-[11px] text-ink-400 mt-0.5">
+                    Assessed on {formatDate(status.pkg.createdAt)} · catalogue v
+                    {status.pkg.closedSetVersion} · version:{' '}
+                    {status.pkg.product.version ?? 'unspecified'}
                   </p>
                 </div>
                 <button onClick={reset} className="btn">
                   Start over
                 </button>
               </div>
+              {loadWarning && (
+                <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-xs px-3 py-2">
+                  {loadWarning}
+                </div>
+              )}
             </section>
             <ControlPlacementMap gaps={status.pkg.gaps} />
             <GapReport gaps={status.pkg.gaps} />
-            <GuardrailMatrix gaps={status.pkg.gaps} />
+            <CoveragePanel gaps={status.pkg.gaps} />
+            <GuardrailMatrix
+              gaps={status.pkg.gaps}
+              evidenceById={
+                new Map(status.pkg.evidence.map((e) => [e.id, e]))
+              }
+              validations={status.pkg.validations}
+              onValidate={setValidation}
+            />
             {status.pkg.metrics && <CostBadge metrics={status.pkg.metrics} />}
           </>
         )}
 
+        <SavedAssessments onLoad={loadPkg} refreshKey={savedVersion} />
         <CatalogueBrowse />
       </div>
     </div>

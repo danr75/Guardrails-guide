@@ -7,6 +7,7 @@ import type {
   GuardrailKey,
   ObservedGuardrail,
   Presence,
+  ValidationVerdict,
 } from './guardrails';
 
 export interface ProductIdentity {
@@ -16,6 +17,8 @@ export interface ProductIdentity {
   url?: string;
   deployment: Deployment;
   aiShape: AiShape;
+  /** Specific version / release / tier the assessment reflects, if stated. */
+  version?: string;
 }
 
 export type AssessmentPhase = 'preflight' | 'extraction' | 'escalation';
@@ -55,8 +58,20 @@ export interface GapResult {
   status: GapStatus;
   /** When present/configurable, the surface(s) it was found at. */
   presentAt?: ControlSurface[];
+  /**
+   * Whether the tool could actually determine a verdict, vs. defaulting to
+   * `missing` for lack of information. `no_evidence` = nothing was found at all;
+   * `unknown` = sources mentioned it but couldn't confirm; `determined` = a
+   * confident verdict. Used to flag coverage gaps for manual validation.
+   */
+  coverage?: 'determined' | 'no_evidence' | 'unknown';
   /** What the LLM observed (may be more than one observation if disputed). */
-  observed?: Array<{ presence: Presence; appliedAt: ControlSurface; claim: string }>;
+  observed?: Array<{
+    presence: Presence;
+    appliedAt: ControlSurface;
+    claim: string;
+    evidenceIds: string[];
+  }>;
   /** Compensation suggestions when status === 'missing'. */
   compensations?: Array<{
     surface: ControlSurface;
@@ -77,6 +92,17 @@ export interface AssessmentPackage {
   evidence: Evidence[];
   observed: ObservedGuardrail[];
   gaps: GapResult[];
+  /**
+   * The user's own validation verdicts, keyed by guardrail. Parallel to `gaps`
+   * — the deterministic gap status stays immutable; this records the human
+   * review on top of it (and may disagree with the tool).
+   */
+  validations?: Partial<
+    Record<
+      GuardrailKey,
+      { verdict: ValidationVerdict; note?: string; validatedAt: string }
+    >
+  >;
   metrics?: AssessmentMetrics;
   /** Diagnostic counters from normalization. */
   dropped: { evidence: number; guardrails: number };

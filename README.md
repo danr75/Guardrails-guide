@@ -90,6 +90,27 @@ npm run deploy                                # vite build + wrangler deploy
 **Workers Paid plan is recommended.** A 4-roundtrip web_search extract can
 take 60–180s, which exceeds Workers free-tier wall-clock limits.
 
+## Transparency, validation & persistence
+
+- **Provenance:** every verdict carries its `evidenceIds` through the engine, so
+  the guardrail matrix's *Sources* column expands to the supporting URLs,
+  verbatim quotes, publishers, and evidence category + trust-level pills.
+- **Assessed version + date:** the done-view header states the product
+  `version` (extracted when a primary source declares it, else "unspecified"),
+  the assessment date, and the catalogue version it was computed against.
+- **User validation (separate outcome):** each guardrail has a *Your verdict*
+  control — Confirmed / Refuted-or-Different / Needs-review, plus an optional
+  note. Verdicts live in `AssessmentPackage.validations`, parallel to the
+  immutable deterministic `gaps`, and persist with the package.
+- **Coverage check:** the `coverage` flag (`determined` / `no_evidence` /
+  `unknown`) separates what the tool *couldn't determine* from what the product
+  genuinely lacks. The Coverage panel lists the blind spots to verify manually.
+- **Persistence:** `src/lib/storage.ts` auto-saves each assessment to
+  `localStorage` (keyed by product · deployment · ai-shape · createdAt). The
+  *Saved assessments* panel lists, loads, deletes, and exports them as JSON, and
+  imports a shared JSON. Loading a package built against an older
+  `CLOSED_SET_VERSION` recomputes gaps and warns.
+
 ## Endpoints
 
 All routes use a typed envelope:
@@ -119,9 +140,6 @@ All routes use a typed envelope:
 
 ## TODOs / deferred
 
-- Persistence: `localStorage` library + JSON export/import. Schema is
-  versioned (`CLOSED_SET_VERSION` is already stamped into every package);
-  the storage layer itself is not yet wired up.
 - `HowItWorks` component explaining the two-pass discipline.
 - Per-product extract caching keyed by `sha256(product || deployment || aiShape)`
   so re-renders after a gap-engine code change don't re-bill OpenRouter.

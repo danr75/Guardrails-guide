@@ -33,10 +33,20 @@ function evaluateOne(
   def: GuardrailRequirementDef,
   hits: ObservedGuardrail[],
 ): GapResult {
+  // Carry evidenceIds through to the verdict so the UI can trace each
+  // observation back to its supporting sources.
+  const toObserved = (h: ObservedGuardrail) => ({
+    presence: h.presence,
+    appliedAt: h.appliedAt,
+    claim: h.claim,
+    evidenceIds: h.evidenceIds,
+  });
+
   if (hits.length === 0) {
     return {
       key: def.key,
       status: 'missing',
+      coverage: 'no_evidence',
       rationale: `No evidence found that ${def.label.toLowerCase()} is provided by the product.`,
       compensations: [...def.externalCompensations],
     };
@@ -55,11 +65,8 @@ function evaluateOne(
     return {
       key: def.key,
       status: 'disputed',
-      observed: hits.map((h) => ({
-        presence: h.presence,
-        appliedAt: h.appliedAt,
-        claim: h.claim,
-      })),
+      coverage: 'unknown',
+      observed: hits.map(toObserved),
       rationale:
         'Sources disagree about whether this guardrail is provided. Review evidence before relying on it.',
     };
@@ -86,41 +93,39 @@ function evaluateOne(
     ),
   );
 
+  // A confident verdict is "determined" unless the supporting observation is
+  // itself low-confidence (<0.5), in which case flag it for manual review.
+  const coverage: GapResult['coverage'] =
+    strongest.confidence !== undefined && strongest.confidence < 0.5
+      ? 'unknown'
+      : 'determined';
+
   switch (strongest.presence) {
     case 'built_in':
       return {
         key: def.key,
         status: 'present',
+        coverage,
         presentAt,
-        observed: hits.map((h) => ({
-          presence: h.presence,
-          appliedAt: h.appliedAt,
-          claim: h.claim,
-        })),
+        observed: hits.map(toObserved),
         rationale: `Built into the product at ${humanList(presentAt)}.`,
       };
     case 'configurable':
       return {
         key: def.key,
         status: 'configurable',
+        coverage,
         presentAt,
-        observed: hits.map((h) => ({
-          presence: h.presence,
-          appliedAt: h.appliedAt,
-          claim: h.claim,
-        })),
+        observed: hits.map(toObserved),
         rationale: `Capability exists but must be turned on (${humanList(presentAt)}).`,
       };
     case 'optional_add_on':
       return {
         key: def.key,
         status: 'configurable',
+        coverage,
         presentAt,
-        observed: hits.map((h) => ({
-          presence: h.presence,
-          appliedAt: h.appliedAt,
-          claim: h.claim,
-        })),
+        observed: hits.map(toObserved),
         rationale: 'Offered as an add-on or higher-tier feature. Confirm licensing.',
         compensations: [...def.externalCompensations],
       };
@@ -128,11 +133,8 @@ function evaluateOne(
       return {
         key: def.key,
         status: 'missing',
-        observed: hits.map((h) => ({
-          presence: h.presence,
-          appliedAt: h.appliedAt,
-          claim: h.claim,
-        })),
+        coverage,
+        observed: hits.map(toObserved),
         rationale: 'The vendor explicitly does not support this guardrail.',
         compensations: [...def.externalCompensations],
       };
@@ -141,11 +143,8 @@ function evaluateOne(
       return {
         key: def.key,
         status: 'missing',
-        observed: hits.map((h) => ({
-          presence: h.presence,
-          appliedAt: h.appliedAt,
-          claim: h.claim,
-        })),
+        coverage: 'unknown',
+        observed: hits.map(toObserved),
         rationale: 'Could not confirm whether this guardrail is provided.',
         compensations: [...def.externalCompensations],
       };
